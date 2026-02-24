@@ -7,10 +7,10 @@
 <meta name="theme-color" content="#4CAF50">
 <style>
 :root{
---bg:#f4f6f8; --card:#ffffff; --text:#111; --accent:#4CAF50; --danger:#ff5252;
+--bg:#ffffffd4; --card:#ffffff; --text:#111; --accent:#198a1d; --danger:#ff5252;
 }
 .dark{
---bg:#1e1e1e; --card:#2a2a2a; --text:#f1f1f1; --accent:#76ff03; --danger:#ff5252;
+--bg:#1e1e1e; --card:#2a2a2a; --text:#f1f1f1; --accent:#198a1d; --danger:#ff5252;
 }
 body{font-family:Arial;background:var(--bg);color:var(--text);margin:0;padding:10px;overflow-x:hidden;}
 .card{background:var(--card);padding:12px;margin-bottom:12px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,0.1);}
@@ -182,7 +182,13 @@ function renderSwipePages(){
     let dayTotal=0, proteinTotal=0;
     dayData.entries.forEach(e=>{ dayTotal+=e.cal; proteinTotal+=e.p; });
     let target = mode==="cut"? (dayData.training?1800:1433) : (dayData.training?2100:1700);
-    let entriesHTML = dayData.entries.map(e=>`<div>${e.meal} ${e.food} ${Math.round(e.cal)} kcal</div>`).join("");
+    let entriesHTML = dayData.entries.map((e,j)=>`
+  <div>
+    ${e.meal} ${e.food} ${Math.round(e.cal)} kcal
+    <button onclick="editEntry(${i},${j})" style="font-size:10px;margin-left:5px;">Edit</button>
+    <button onclick="deleteEntry(${i},${j})" style="font-size:10px;margin-left:5px;background:#ff5252;">Del</button>
+  </div>
+`).join("");
     page.innerHTML = `<strong>${dayNames[i]} ${dayData.training?"💪":""}</strong> ${Math.round(dayTotal)}/${target} kcal<br>Protein: ${Math.round(proteinTotal)}/${PROTEIN_TARGET} g<br>${entriesHTML}<br><canvas id="calChart_${i}"></canvas><canvas id="protChart_${i}"></canvas>`;
     container.appendChild(page);
     renderChartsForDay(i, dayData);
@@ -210,6 +216,61 @@ if("serviceWorker" in navigator){
   navigator.serviceWorker.register("./sw.js")
   .then(()=>console.log("Service Worker registered"))
   .catch(e=>console.error("SW registration failed:", e));
+}
+
+// ======= Edit & Delete Functions =======
+function editEntry(dayIndex, entryIndex){
+  const entry = data[dayIndex].entries[entryIndex];
+  document.getElementById("day").value = dayIndex;
+  document.getElementById("meal").value = entry.meal;
+  document.getElementById("food").value = entry.food;
+  document.getElementById("protein").value = entry.p;
+  document.getElementById("carbs").value = entry.c;
+  document.getElementById("fat").value = entry.f;
+  document.getElementById("training").checked = data[dayIndex].training;
+
+  // Change Add Entry button to Save Changes
+  const addBtn = document.querySelector('button[onclick="addFood()"]');
+  addBtn.textContent = "Save Changes";
+  addBtn.onclick = function(){
+    saveEditedEntry(dayIndex, entryIndex);
+  };
+}
+
+// ====== Save Edited Entry =======
+function saveEditedEntry(dayIndex, entryIndex){
+  const meal = document.getElementById("meal").value;
+  const food = document.getElementById("food").value;
+  const p = +document.getElementById("protein").value || 0;
+  const c = +document.getElementById("carbs").value || 0;
+  const f = +document.getElementById("fat").value || 0;
+  const training = document.getElementById("training").checked;
+
+  if(!food) return alert("Enter food name");
+
+  const cal = p*4 + c*4 + f*9;
+  data[dayIndex].entries[entryIndex] = {meal, food, p, c, f, cal};
+  data[dayIndex].training = training;
+
+  // Reset Add Entry button
+  const addBtn = document.querySelector('button[onclick="addFood()"]');
+  addBtn.textContent = "Add Entry";
+  addBtn.onclick = addFood;
+
+  // Clear input fields
+  document.querySelectorAll("input").forEach(i => {if(i.type!=="checkbox") i.value="";});
+  document.getElementById("training").checked = false;
+
+  save();
+  renderSwipePages();
+}
+
+// ====== Delete Entry ======
+function deleteEntry(dayIndex, entryIndex){
+  if(!confirm("Delete this entry?")) return;
+  data[dayIndex].entries.splice(entryIndex, 1);
+  save();
+  renderSwipePages();
 }
 </script>
 </body>
