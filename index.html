@@ -14,93 +14,32 @@
   --danger:#FF4C4C;
   --shadow:0 4px 12px rgba(0,0,0,0.5);
 }
-body{
-  font-family:'Helvetica Neue',Arial,sans-serif;
-  background:var(--bg);
-  color:var(--text);
-  margin:0;
-  padding:16px;
-}
+body{font-family:'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:16px;}
 h2,h3{margin:8px 0;}
-button{
-  border:none;
-  border-radius:12px;
-  cursor:pointer;
-  font-size:14px;
-  transition:0.2s;
-}
+button{border:none;border-radius:12px;cursor:pointer;font-size:14px;transition:0.2s;}
 button:hover{opacity:0.85;}
-input,select{
-  border-radius:8px; border:1px solid #333; padding:8px;
-  font-size:14px; width:100%; margin-top:6px; background:#222; color:#E0E0E0;
-}
-.card{
-  background:var(--card);
-  padding:16px;
-  margin-bottom:16px;
-  border-radius:16px;
-  box-shadow:var(--shadow);
-}
-.primary-btn{
-  background:var(--accent);
-  color:#121212;
-  padding:10px;
-  font-weight:600;
-  margin-top:8px;
-}
-.danger-btn{
-  background:var(--danger);
-  color:#fff;
-  padding:6px 8px;
-  font-size:12px;
-  margin-left:6px;
-}
-.entry-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:6px 0;
-  border-bottom:1px solid #333;
-}
+input,select{border-radius:8px;border:1px solid #333;padding:8px;font-size:14px;width:100%;margin-top:6px;background:#222;color:#E0E0E0;}
+.card{background:var(--card);padding:16px;margin-bottom:16px;border-radius:16px;box-shadow:var(--shadow);}
+.primary-btn{background:var(--accent);color:#121212;padding:10px;font-weight:600;margin-top:8px;}
+.danger-btn{background:var(--danger);color:#fff;padding:6px 8px;font-size:12px;margin-left:6px;}
+.entry-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #333;}
 .entry-row span{flex:1;}
-.entry-buttons{display:flex; gap:6px;}
-.progress-container{
-  background:#333;
-  border-radius:12px;
-  height:20px;
-  overflow:hidden;
-  margin:12px 0;
-}
-.progress-bar{
-  height:100%;
-  background:var(--accent);
-  width:0%;
-  transition:0.3s;
-  text-align:center;
-  color:#121212;
-  font-weight:bold;
-  line-height:20px;
-}
-.remaining{
-  margin-top:4px;
-  font-size:14px;
-  color:var(--text);
-}
+.entry-buttons{display:flex;gap:6px;}
+.progress-container{background:#333;border-radius:12px;height:20px;overflow:hidden;margin:12px 0;}
+.progress-bar{height:100%;background:var(--accent);width:0%;transition:0.3s;text-align:center;color:#121212;font-weight:bold;line-height:20px;}
+.remaining{margin-top:4px;font-size:14px;color:var(--text);}
+.reset-btn{background:#FF8000;color:#121212;font-weight:600;width:100%;padding:12px;margin-top:16px;}
 </style>
 </head>
 <body>
 
-<div class="card">
-  <h2>Physique Tracker</h2>
-</div>
+<div class="card"><h2>Physique Tracker</h2></div>
 
 <div class="card">
   <h3>Weekly Calories Progress</h3>
   <label>Set Weekly Calorie Goal:</label>
   <input type="number" id="weeklyGoalInput" placeholder="e.g., 11500">
-  <div class="progress-container">
-    <div id="weeklyProgress" class="progress-bar"></div>
-  </div>
+  <div class="progress-container"><div id="weeklyProgress" class="progress-bar"></div></div>
   <div id="weeklyRemaining" class="remaining"></div>
 </div>
 
@@ -122,12 +61,30 @@ input,select{
 </div>
 
 <div id="weekContainer"></div>
+<button id="resetBtn" class="reset-btn">Reset All Entries</button>
 
 <script>
 const PROTEIN_TARGET = 140;
 const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-let data = JSON.parse(localStorage.getItem("physiqueData")) || dayNames.map(()=>({entries:[],training:false}));
 let WEEKLY_CAL_TARGET = parseInt(localStorage.getItem("weeklyGoal")) || 11500;
+
+// Compute current week key (year + week number)
+function getWeekKey(){
+  const now = new Date();
+  const firstJan = new Date(now.getFullYear(),0,1);
+  const pastDays = Math.floor((now-firstJan)/86400000);
+  const weekNumber = Math.ceil((pastDays + firstJan.getDay()+1)/7);
+  return now.getFullYear() + "-W" + weekNumber;
+}
+
+// Load or initialize all weeks
+let allWeeks = JSON.parse(localStorage.getItem("allWeeks")) || {};
+let currentWeekKey = getWeekKey();
+if(!allWeeks[currentWeekKey]){ // new week, auto reset
+  allWeeks[currentWeekKey] = dayNames.map(()=>({entries:[],training:false}));
+  localStorage.setItem("allWeeks", JSON.stringify(allWeeks));
+}
+let data = allWeeks[currentWeekKey];
 
 // Populate day dropdown
 function populateDays(){
@@ -137,22 +94,20 @@ function populateDays(){
 }
 populateDays();
 
-// Save to localStorage
+// Save data
 function save(){
-  localStorage.setItem("physiqueData", JSON.stringify(data));
+  allWeeks[currentWeekKey] = data;
+  localStorage.setItem("allWeeks", JSON.stringify(allWeeks));
   localStorage.setItem("weeklyGoal", WEEKLY_CAL_TARGET);
-  updateWeeklyProgress();
+  renderWeekHistory();
 }
 
-// Update weekly goal
+// Weekly goal input
 const goalInput = document.getElementById("weeklyGoalInput");
 goalInput.value = WEEKLY_CAL_TARGET;
 goalInput.addEventListener("change", ()=>{
   const val = parseInt(goalInput.value);
-  if(!isNaN(val) && val>0){
-    WEEKLY_CAL_TARGET = val;
-    save();
-  }
+  if(!isNaN(val) && val>0){ WEEKLY_CAL_TARGET = val; save(); }
 });
 
 // Add Entry
@@ -169,7 +124,6 @@ function addFood(){
   data[day].entries.push({meal,food,p,c,f,cal});
   data[day].training = training;
   save();
-  renderWeek();
   document.getElementById("food").value="";
   document.getElementById("protein").value="";
   document.getElementById("carbs").value="";
@@ -178,7 +132,7 @@ function addFood(){
 }
 document.getElementById("addEntryBtn").addEventListener("click", addFood);
 
-// Edit / Delete Entry
+// Edit / Delete
 function editEntry(d,i){
   const e = data[d].entries[i];
   document.getElementById("day").value = d;
@@ -201,57 +155,67 @@ function editEntry(d,i){
     const cal = p*4 + c*4 + f*9;
     data[d].entries[i] = {meal,food,p,c,f,cal};
     data[d].training = training;
-    save();
-    renderWeek();
     btn.textContent = "Add Entry";
-    btn.removeEventListener('click', saveEdit);
-    btn.addEventListener('click', addFood);
+    btn.removeEventListener("click", saveEdit);
+    btn.addEventListener("click", addFood);
+    save();
   };
-  btn.removeEventListener('click', addFood);
-  btn.addEventListener('click', saveEdit);
+  btn.removeEventListener("click", addFood);
+  btn.addEventListener("click", saveEdit);
 }
 
 function deleteEntry(d,i){
   if(!confirm("Delete this entry?")) return;
   data[d].entries.splice(i,1);
   save();
-  renderWeek();
 }
 
-// Render Week vertically
-function renderWeek(){
+// Reset current week
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  if(confirm("Clear all entries for the current week?")){
+    data = dayNames.map(()=>({entries:[],training:false}));
+    save();
+  }
+});
+
+// Render all weeks with "Week 1, Week 2..."
+function renderWeekHistory(){
   const container = document.getElementById("weekContainer");
   container.innerHTML = "";
-  data.forEach((dayData,i)=>{
+  const weekKeys = Object.keys(allWeeks).sort();
+  weekKeys.forEach((weekKey,index)=>{
+    const weekData = allWeeks[weekKey];
     const card = document.createElement("div");
     card.className = "card";
-    let totalC = 0, totalP = 0;
-    dayData.entries.forEach(e=>{ totalC+=e.cal; totalP+=e.p; });
-    let html = dayData.entries.map((e,j)=>`
-      <div class="entry-row">
-        <span>${e.meal} ${e.food} ${Math.round(e.cal)} kcal</span>
-        <div class="entry-buttons">
-          <button class="primary-btn" style="font-size:10px;" onclick="editEntry(${i},${j})">Edit</button>
-          <button class="danger-btn" onclick="deleteEntry(${i},${j})">Del</button>
-        </div>
-      </div>`).join("");
-    card.innerHTML = `<strong>${dayNames[i]} ${dayData.training?"💪":""}</strong> ${Math.round(totalC)} kcal<br>Protein: ${Math.round(totalP)}/${PROTEIN_TARGET} g<br>${html}`;
+    let totalWeekCalories = 0;
+    let html = weekData.map((dayData,i)=>{
+      let dayTotal=0, proteinTotal=0;
+      dayData.entries.forEach(e=>{ dayTotal+=e.cal; proteinTotal+=e.p; });
+      totalWeekCalories += dayTotal;
+      const entriesHTML = dayData.entries.map((e,j)=>`
+        <div class="entry-row">
+          <span>${e.meal} ${e.food} ${Math.round(e.cal)} kcal</span>
+          <div class="entry-buttons">
+            <button class="primary-btn" style="font-size:10px;" onclick="editEntry(${i},${j})">Edit</button>
+            <button class="danger-btn" onclick="deleteEntry(${i},${j})">Del</button>
+          </div>
+        </div>`).join("");
+      return `<strong>${dayNames[i]} ${dayData.training?"💪":""}</strong> ${Math.round(dayTotal)} kcal<br>Protein: ${Math.round(proteinTotal)}/${PROTEIN_TARGET} g<br>${entriesHTML}`;
+    }).join("<hr>");
+    card.innerHTML = `<strong>Week ${index+1}</strong> (Total Calories: ${totalWeekCalories})<br>${html}`;
     container.appendChild(card);
+    // Update current week progress bar
+    if(weekKey === currentWeekKey){
+      const progressEl = document.getElementById("weeklyProgress");
+      const remainingEl = document.getElementById("weeklyRemaining");
+      const percent = Math.min((totalWeekCalories/WEEKLY_CAL_TARGET)*100,100);
+      progressEl.style.width = percent + "%";
+      remainingEl.textContent = `Calories Remaining: ${Math.max(WEEKLY_CAL_TARGET - totalWeekCalories,0)} kcal`;
+    }
   });
-  updateWeeklyProgress();
 }
 
-// Update weekly calories progress and remaining
-function updateWeeklyProgress(){
-  let totalWeekCalories = data.reduce((sum,day)=> sum + day.entries.reduce((s,e)=> s+e.cal,0),0);
-  const progressEl = document.getElementById("weeklyProgress");
-  const remainingEl = document.getElementById("weeklyRemaining");
-  const percent = Math.min((totalWeekCalories/WEEKLY_CAL_TARGET)*100,100);
-  progressEl.style.width = percent + "%";
-  remainingEl.textContent = `Calories Remaining: ${Math.max(WEEKLY_CAL_TARGET - totalWeekCalories,0)} kcal`;
-}
-
-renderWeek();
+renderWeekHistory();
 </script>
 </body>
 </html>
