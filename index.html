@@ -4,30 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Physique Tracker</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#4CAF50">
 <style>
-/* --- Root Colors --- */
 :root{
-  --bg:#fafafa;
-  --card:#ffffff;
-  --text:#111;
-  --accent:#4CAF50;
-  --accent-light:#A5D6A7;
-  --danger:#FF5252;
-  --shadow:0 4px 12px rgba(0,0,0,0.08);
+  --bg:#121212;
+  --card:#1E1E1E;
+  --text:#E0E0E0;
+  --accent:#00FF7F;
+  --accent-light:#33FF99;
+  --danger:#FF4C4C;
+  --shadow:0 4px 12px rgba(0,0,0,0.5);
 }
-.dark{
-  --bg:#1b1b1b;
-  --card:#252525;
-  --text:#f1f1f1;
-  --accent:#76FF03;
-  --accent-light:#a5d6a7;
-  --danger:#ff5252;
-  --shadow:0 4px 12px rgba(0,0,0,0.2);
-}
-
-/* --- Global --- */
 body{
   font-family:'Helvetica Neue',Arial,sans-serif;
   background:var(--bg);
@@ -38,57 +24,37 @@ body{
 h2,h3{margin:8px 0;}
 button{
   border:none;
-  border-radius:10px;
+  border-radius:12px;
   cursor:pointer;
   font-size:14px;
   transition:0.2s;
 }
-button:hover{opacity:0.9;}
-input,select{border-radius:8px; border:1px solid #ccc; padding:8px; font-size:14px; width:100%; margin-top:6px;}
-
-/* --- Cards --- */
+button:hover{opacity:0.85;}
+input,select{
+  border-radius:8px; border:1px solid #333; padding:8px;
+  font-size:14px; width:100%; margin-top:6px; background:#222; color:#E0E0E0;
+}
 .card{
   background:var(--card);
   padding:16px;
   margin-bottom:16px;
-  border-radius:12px;
+  border-radius:16px;
   box-shadow:var(--shadow);
 }
-
-/* --- Top Bar --- */
-.top{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:12px;
-}
-.top button{padding:8px 12px; font-size:14px;}
-
-/* --- Buttons --- */
 .primary-btn{
   background:var(--accent);
-  color:white;
-  padding:12px;
+  color:#121212;
+  padding:10px;
   font-weight:600;
   margin-top:8px;
 }
 .danger-btn{
   background:var(--danger);
-  color:white;
+  color:#fff;
   padding:6px 8px;
   font-size:12px;
   margin-left:6px;
 }
-
-/* --- Charts --- */
-canvas{
-  width:100%;
-  max-width:100%;
-  height:180px;
-  margin-top:12px;
-}
-
-/* --- Swipe Container --- */
 .swipe-container{
   display:flex;
   overflow-x:auto;
@@ -99,39 +65,27 @@ canvas{
   flex-shrink:0;
   scroll-snap-align:start;
 }
-
-/* --- Entry Row --- */
 .entry-row{
   display:flex;
   justify-content:space-between;
   align-items:center;
   padding:6px 0;
-  border-bottom:1px solid #eee;
+  border-bottom:1px solid #333;
 }
 .entry-row span{flex:1;}
 .entry-buttons{display:flex; gap:6px;}
-
-/* --- Status --- */
-#saveStatus{
-  font-size:12px;
-  color:var(--accent);
-  margin-top:4px;
+canvas{
+  width:100%;
+  max-width:100%;
+  height:120px;
+  margin-top:12px;
 }
 </style>
 </head>
 <body>
 
-<div class="top">
-  <h2>Physique Tracker</h2>
-  <button onclick="toggleDark()">🌙 Dark Mode</button>
-</div>
-
 <div class="card">
-  <button class="primary-btn" onclick="setMode('cut')">Fat Loss</button>
-  <button class="primary-btn" onclick="setMode('bulk')">Lean Bulk</button>
-  <div id="modeDisplay" style="margin-top:6px;font-weight:600;"></div>
-  <button class="danger-btn" onclick="resetData()" style="margin-top:8px;">Reset All Data</button>
-  <div id="saveStatus">Saved ✔</div>
+  <h2>Physique Tracker</h2>
 </div>
 
 <div class="card">
@@ -153,72 +107,26 @@ canvas{
 
 <div id="swipeContainer" class="swipe-container"></div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
-// ===== Firebase Setup =====
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-// ===== Device ID =====
-let deviceId = localStorage.getItem("deviceId");
-if(!deviceId){
-  deviceId = "user-" + Math.random().toString(36).substring(2,12);
-  localStorage.setItem("deviceId", deviceId);
-}
-
-// ===== Variables =====
 const PROTEIN_TARGET = 140;
-const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-let mode = localStorage.getItem("mode") || "cut";
-let currentWeekKey;
-let data = dayNames.map(()=>({entries:[],training:false}));
-currentWeekKey = getWeekKey();
+const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+let data = JSON.parse(localStorage.getItem("physiqueData")) || dayNames.map(()=>({entries:[],training:false}));
 
-// ===== Load Data from Firebase =====
-db.collection("users").doc(deviceId).get()
-.then(doc=>{
-  if(doc.exists && doc.data().data){ data = doc.data().data; }
-  populateDays();
-  renderSwipePages();
-})
-.catch(e=>console.error("Firebase load error:", e));
+// Populate day dropdown
+function populateDays(){
+  const daySelect = document.getElementById("day");
+  daySelect.innerHTML = "";
+  dayNames.forEach((d,i)=>{ daySelect.innerHTML += `<option value="${i}">${d}</option>`; });
+}
+populateDays();
 
-// ===== Save =====
+// Save to localStorage
 function save(){
-  db.collection("users").doc(deviceId).set({
-    data: data,
-    week: currentWeekKey,
-    updated: new Date()
-  })
-  .then(()=>{ const s=document.getElementById("saveStatus"); if(s){ s.textContent="Saved ✔"; setTimeout(()=>s.textContent="",2000); } })
-  .catch(e=> console.error("Firebase save error:", e));
+  localStorage.setItem("physiqueData", JSON.stringify(data));
 }
 
-// ===== Reset =====
-function resetData(){
-  if(!confirm("Are you sure you want to delete all your data?")) return;
-  db.collection("users").doc(deviceId).delete()
-  .then(()=>{ data = dayNames.map(()=>({entries:[],training:false})); renderSwipePages(); alert("All data has been reset."); })
-  .catch(e=> console.error("Reset error:", e));
-}
-
-// ===== Populate Days Dropdown =====
-function populateDays(){ const s=document.getElementById("day"); s.innerHTML=""; dayNames.forEach((d,i)=>s.innerHTML+=`<option value="${i}">${d}</option>`); }
-
-// ===== Add/Edit/Delete =====
-document.getElementById("addEntryBtn").addEventListener("click", addFood);
-
+// Add Entry
 function addFood(){
   const day = +document.getElementById("day").value;
   const meal = document.getElementById("meal").value;
@@ -228,79 +136,81 @@ function addFood(){
   const f = +document.getElementById("fat").value||0;
   const training = document.getElementById("training").checked;
   if(!food) return alert("Enter food name");
-  const cal = p*4+c*4+f*9;
+  const cal = p*4 + c*4 + f*9;
   data[day].entries.push({meal,food,p,c,f,cal});
   data[day].training = training;
-  save(); renderSwipePages();
-  document.getElementById("food").value=""; document.getElementById("protein").value=""; document.getElementById("carbs").value=""; document.getElementById("fat").value=""; document.getElementById("training").checked=false;
-}
-
-function editEntry(dayIndex, entryIndex){
-  const e = data[dayIndex].entries[entryIndex];
-  document.getElementById("day").value=dayIndex; document.getElementById("meal").value=e.meal;
-  document.getElementById("food").value=e.food; document.getElementById("protein").value=e.p;
-  document.getElementById("carbs").value=e.c; document.getElementById("fat").value=e.f;
-  document.getElementById("training").checked=data[dayIndex].training;
-  const btn=document.getElementById("addEntryBtn");
-  btn.textContent="Save Changes"; btn.onclick=function(){ saveEditedEntry(dayIndex,entryIndex); };
-}
-function saveEditedEntry(dayIndex,entryIndex){
-  const meal=document.getElementById("meal").value;
-  const food=document.getElementById("food").value;
-  const p=+document.getElementById("protein").value||0;
-  const c=+document.getElementById("carbs").value||0;
-  const f=+document.getElementById("fat").value||0;
-  const training=document.getElementById("training").checked;
-  if(!food) return alert("Enter food name");
-  const cal=p*4+c*4+f*9;
-  data[dayIndex].entries[entryIndex]={meal,food,p,c,f,cal};
-  data[dayIndex].training=training;
-  const btn=document.getElementById("addEntryBtn");
-  btn.textContent="Add Entry"; btn.onclick=addFood;
-  document.getElementById("food").value=""; document.getElementById("protein").value="";
-  document.getElementById("carbs").value=""; document.getElementById("fat").value="";
+  save();
+  renderSwipePages();
+  document.getElementById("food").value="";
+  document.getElementById("protein").value="";
+  document.getElementById("carbs").value="";
+  document.getElementById("fat").value="";
   document.getElementById("training").checked=false;
-  save(); renderSwipePages();
 }
-function deleteEntry(dayIndex,entryIndex){ if(!confirm("Delete this entry?")) return; data[dayIndex].entries.splice(entryIndex,1); save(); renderSwipePages(); }
+document.getElementById("addEntryBtn").addEventListener("click", addFood);
 
-// ===== Render Pages & Charts =====
+// Edit / Delete Entry
+function editEntry(d,i){
+  const e = data[d].entries[i];
+  document.getElementById("day").value = d;
+  document.getElementById("meal").value = e.meal;
+  document.getElementById("food").value = e.food;
+  document.getElementById("protein").value = e.p;
+  document.getElementById("carbs").value = e.c;
+  document.getElementById("fat").value = e.f;
+  document.getElementById("training").checked = data[d].training;
+  const btn = document.getElementById("addEntryBtn");
+  btn.textContent = "Save Changes";
+  const saveEdit = function(){
+    const meal = document.getElementById("meal").value;
+    const food = document.getElementById("food").value;
+    const p = +document.getElementById("protein").value||0;
+    const c = +document.getElementById("carbs").value||0;
+    const f = +document.getElementById("fat").value||0;
+    const training = document.getElementById("training").checked;
+    if(!food) return alert("Enter food name");
+    const cal = p*4 + c*4 + f*9;
+    data[d].entries[i] = {meal,food,p,c,f,cal};
+    data[d].training = training;
+    save();
+    renderSwipePages();
+    btn.textContent = "Add Entry";
+    btn.removeEventListener('click', saveEdit);
+    btn.addEventListener('click', addFood);
+  };
+  btn.removeEventListener('click', addFood);
+  btn.addEventListener('click', saveEdit);
+}
+
+function deleteEntry(d,i){
+  if(!confirm("Delete this entry?")) return;
+  data[d].entries.splice(i,1);
+  save();
+  renderSwipePages();
+}
+
+// Render Pages and Charts
 function renderSwipePages(){
-  const container=document.getElementById("swipeContainer"); container.innerHTML="";
+  const container = document.getElementById("swipeContainer");
+  container.innerHTML = "";
   data.forEach((dayData,i)=>{
-    const page=document.createElement("div"); page.className="swipe-page card";
-    let totalCal=0, totalProt=0; dayData.entries.forEach(e=>{totalCal+=e.cal; totalProt+=e.p;});
-    let target=(mode==="cut"? (dayData.training?1800:1433):(dayData.training?2100:1700));
-    let html=dayData.entries.map((e,j)=>`
+    const page = document.createElement("div");
+    page.className = "swipe-page card";
+    let totalC = 0, totalP = 0;
+    dayData.entries.forEach(e=>{ totalC+=e.cal; totalP+=e.p; });
+    let html = dayData.entries.map((e,j)=>`
       <div class="entry-row">
         <span>${e.meal} ${e.food} ${Math.round(e.cal)} kcal</span>
         <div class="entry-buttons">
-          <button class="primary-btn" onclick="editEntry(${i},${j})" style="font-size:10px;">Edit</button>
+          <button class="primary-btn" style="font-size:10px;" onclick="editEntry(${i},${j})">Edit</button>
           <button class="danger-btn" onclick="deleteEntry(${i},${j})">Del</button>
         </div>
       </div>`).join("");
-    page.innerHTML=`<strong>${dayNames[i]} ${dayData.training?"💪":""}</strong> ${Math.round(totalCal)}/${target} kcal<br>Protein: ${Math.round(totalProt)}/${PROTEIN_TARGET} g<br>${html}<canvas id="calChart_${i}"></canvas><canvas id="protChart_${i}"></canvas>`;
+    page.innerHTML = `<strong>${dayNames[i]} ${dayData.training?"💪":""}</strong> ${Math.round(totalC)} kcal<br>Protein: ${Math.round(totalP)}/${PROTEIN_TARGET} g<br>${html}`;
     container.appendChild(page);
-    renderChartsForDay(i,dayData);
   });
-  document.getElementById("modeDisplay").textContent="Mode: "+mode;
 }
-function renderChartsForDay(i,dayData){
-  let calData=[], protData=[], labels=[];
-  dayData.entries.forEach(e=>{calData.push(e.cal); protData.push(e.p); labels.push(e.meal);});
-  new Chart(document.getElementById("calChart_"+i).getContext("2d"),{type:'bar',data:{labels,datasets:[{label:'Calories',data:calData,backgroundColor:calData.map(v=>v>2100?'var(--danger)':'var(--accent)')}]}});
-  new Chart(document.getElementById("protChart_"+i).getContext("2d"),{type:'bar',data:{labels,datasets:[{label:'Protein',data:protData,backgroundColor:protData.map(v=>v<PROTEIN_TARGET?'var(--danger)':'var(--accent)')}]}});
-}
-
-// ===== Mode/Dark Toggle =====
-function setMode(m){ mode=m; localStorage.setItem("mode",m); renderSwipePages(); }
-function toggleDark(){ document.body.classList.toggle("dark"); }
-
-// ===== Week Key =====
-function getWeekKey(){ const now=new Date(); const f=new Date(now.getFullYear(),0,1); const past=Math.floor((now-f)/86400000); return now.getFullYear()+"-W"+Math.ceil((past+f.getDay()+1)/7); }
-
-// ===== Service Worker =====
-if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").then(()=>console.log("SW Registered")).catch(e=>console.error(e)); }
+renderSwipePages();
 </script>
 </body>
 </html>
