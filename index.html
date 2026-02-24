@@ -81,6 +81,11 @@ input,select{
   font-weight:bold;
   line-height:20px;
 }
+.remaining{
+  margin-top:4px;
+  font-size:14px;
+  color:var(--text);
+}
 </style>
 </head>
 <body>
@@ -92,8 +97,9 @@ input,select{
 <div class="card">
   <h3>Weekly Calories Progress</h3>
   <div class="progress-container">
-    <div id="weeklyProgress" class="progress-bar">0 / 14000 kcal</div>
+    <div id="weeklyProgress" class="progress-bar"></div>
   </div>
+  <div id="weeklyRemaining" class="remaining"></div>
 </div>
 
 <div class="card">
@@ -117,7 +123,7 @@ input,select{
 
 <script>
 const PROTEIN_TARGET = 140;
-const WEEKLY_CAL_TARGET = 14000; // e.g., 2000 kcal/day * 7 days
+const WEEKLY_CAL_TARGET = 11500; // <-- your weekly goal
 const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 let data = JSON.parse(localStorage.getItem("physiqueData")) || dayNames.map(()=>({entries:[],training:false}));
 
@@ -221,13 +227,14 @@ function renderWeek(){
   updateWeeklyProgress();
 }
 
-// Update weekly calories progress bar
+// Update weekly calories progress and remaining
 function updateWeeklyProgress(){
   let totalWeekCalories = data.reduce((sum,day)=> sum + day.entries.reduce((s,e)=> s+e.cal,0),0);
   const progressEl = document.getElementById("weeklyProgress");
+  const remainingEl = document.getElementById("weeklyRemaining");
   const percent = Math.min((totalWeekCalories/WEEKLY_CAL_TARGET)*100,100);
   progressEl.style.width = percent + "%";
-  progressEl.textContent = `${totalWeekCalories} / ${WEEKLY_CAL_TARGET} kcal`;
+  remainingEl.textContent = `Calories Remaining: ${Math.max(WEEKLY_CAL_TARGET - totalWeekCalories,0)} kcal`;
 }
 
 renderWeek();
