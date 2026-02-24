@@ -96,6 +96,8 @@ input,select{
 
 <div class="card">
   <h3>Weekly Calories Progress</h3>
+  <label>Set Weekly Calorie Goal:</label>
+  <input type="number" id="weeklyGoalInput" placeholder="e.g., 11500">
   <div class="progress-container">
     <div id="weeklyProgress" class="progress-bar"></div>
   </div>
@@ -123,9 +125,9 @@ input,select{
 
 <script>
 const PROTEIN_TARGET = 140;
-const WEEKLY_CAL_TARGET = 11500; // <-- your weekly goal
 const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 let data = JSON.parse(localStorage.getItem("physiqueData")) || dayNames.map(()=>({entries:[],training:false}));
+let WEEKLY_CAL_TARGET = parseInt(localStorage.getItem("weeklyGoal")) || 11500;
 
 // Populate day dropdown
 function populateDays(){
@@ -138,8 +140,20 @@ populateDays();
 // Save to localStorage
 function save(){
   localStorage.setItem("physiqueData", JSON.stringify(data));
+  localStorage.setItem("weeklyGoal", WEEKLY_CAL_TARGET);
   updateWeeklyProgress();
 }
+
+// Update weekly goal
+const goalInput = document.getElementById("weeklyGoalInput");
+goalInput.value = WEEKLY_CAL_TARGET;
+goalInput.addEventListener("change", ()=>{
+  const val = parseInt(goalInput.value);
+  if(!isNaN(val) && val>0){
+    WEEKLY_CAL_TARGET = val;
+    save();
+  }
+});
 
 // Add Entry
 function addFood(){
