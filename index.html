@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Physique Tracker Swipeable</title>
+<style>
+:root{
+--bg:#f4f6f8; --card:#ffffff; --text:#111; --accent:#4CAF50; --danger:#ff5252;
+}
+.dark{
+--bg:#1e1e1e; --card:#2a2a2a; --text:#f1f1f1; --accent:#76ff03; --danger:#ff5252;
+}
+body{font-family:Arial;background:var(--bg);color:var(--text);margin:0;padding:10px;overflow-x:hidden;}
+.card{background:var(--card);padding:12px;margin-bottom:12px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+button{padding:12px;border:none;border-radius:8px;cursor:pointer;margin-top:6px;width:100%;font-size:16px;background:var(--accent);color:white;}
+.small-btn{background:var(--danger);padding:6px 10px;font-size:12px;}
+input,select{padding:10px;margin:6px 0;width:100%;font-size:16px;}
+.progress{background:#ddd;height:12px;border-radius:10px;margin-top:6px;}
+.progress-bar{height:12px;border-radius:10px;background:var(--accent);}
+canvas{width:100%;max-width:100%;height:200px;margin-top:12px;}
+.swipe-container{display:flex;transition:transform 0.3s ease;}
+.swipe-page{min-width:100%;flex-shrink:0;}
+.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+
+<div class="top">
+<h2>Physique Tracker</h2>
+<button onclick="toggleDark()">🌙 Dark Mode</button>
+</div>
+
+<div class="card">
+<button onclick="setMode('cut')">Fat Loss</button>
+<button onclick="setMode('bulk')">Lean Bulk</button>
+<div id="modeDisplay"></div>
+</div>
+
+<div class="card">
+<h3>Add Entry</h3>
+<select id="day"></select>
+<select id="meal">
+<option>Breakfast</option>
+<option>Lunch</option>
+<option>Dinner</option>
+<option>Snack</option>
+</select>
+<input type="text" id="food" placeholder="Food name">
+<input type="number" id="protein" placeholder="Protein (g)">
+<input type="number" id="carbs" placeholder="Carbs (g)">
+<input type="number" id="fat" placeholder="Fat (g)">
+<label><input type="checkbox" id="training"> Training Day</label>
+<button onclick="addFood()">Add Entry</button>
+</div>
+
+<div id="swipeContainer" class="swipe-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const PROTEIN_TARGET = 140;
+const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+let mode = localStorage.getItem("mode") || "cut";
+let currentWeekKey;
+let data = JSON.parse(localStorage.getItem("physiqueData")) || dayNames.map(()=>({entries:[],training:false}));
+
+function getWeekKey(){
+  const now = new Date();
+  const firstDayOfYear = new Date(now.getFullYear(),0,1);
+  const pastDays = Math.floor((now - firstDayOfYear) / 86400000);
+  const weekNumber = Math.ceil((pastDays + firstDayOfYear.getDay()+1)/7);
+  return now.getFullYear() + "-W" + weekNumber;
+}
+
+currentWeekKey = getWeekKey();
+populateDays();
+renderSwipePages();
+
+function calculateCalories(p,c,f){ return p*4 + c*4 + f*9; }
+function getTargets(training){ return mode==="cut"? (training?1800:1433) : (training?2100:1700); }
+function setMode(m){ mode=m; localStorage.setItem("mode",m); renderSwipePages(); }
+function save(){ localStorage.setItem("physiqueData",JSON.stringify(data)); }
+
+function populateDays(){ let select=document.getElementById("day"); select.innerHTML=""; dayNames.forEach((d,i)=> select.innerHTML+=`<option value="${i}">${d}</option>`); }
+
+function addFood(){
+  let day=document.getElementById("day").value;
+  let meal=document.getElementById("meal").value;
+  let food=document.getElementById("food").value;
+  let p=+document.getElementById("protein").value||0;
+  let c=+document.getElementById("carbs").value||0;
+  let f=+document.getElementById("fat").value||0;
+  let training=document.getElementById("training").checked;
+  if(!food) return alert("Enter food name");
+  let cal=calculateCalories(p,c,f);
+  data[day].training=training;
+  data[day].entries.push({meal,food,p,c,f,cal});
+  save();
+  renderSwipePages();
+  document.querySelectorAll("input").forEach(i=>{if(i.type!=="checkbox") i.value="";});
+}
+
+function renderSwipePages(){
+  const container = document.getElementById("swipeContainer");
+  container.innerHTML = "";
+  const trendData = JSON.parse(localStorage.getItem("weekTrends")||"{}");
+  const allWeeks = Object.keys(trendData).sort().concat([currentWeekKey]);
+  allWeeks.forEach(week=>{
+    let weekData = week===currentWeekKey ? data : JSON.parse(localStorage.getItem("weekData_"+week)||"[]");
+    const page = document.createElement("div");
+    page.className="swipe-page card";
+    let dailyHTML="";
+    weekData.forEach((dayData,i)=>{
+      let dayTotal=0, proteinTotal=0;
+      dayData.entries.forEach(e=>{ dayTotal+=e.cal; proteinTotal+=e.p; });
+      let target=getTargets(dayData.training);
+      let percent=(dayTotal/target)*100;
+      let proteinPercent=(proteinTotal/PROTEIN_TARGET)*100;
+      let entriesHTML=dayData.entries.map((e,j)=>`<div>${e.meal} ${e.food} ${Math.round(e.cal)} kcal</div>`).join("");
+      dailyHTML+=`<strong>${dayNames[i]} ${dayData.training?"💪":""}</strong> ${Math.round(dayTotal)}/${target} kcal<br>Protein: ${Math.round(proteinTotal)}/${PROTEIN_TARGET} g<br>${entriesHTML}<br><hr>`;
+    });
+    page.innerHTML=dailyHTML+`<canvas id="calChart_${week}"></canvas><canvas id="protChart_${week}"></canvas>`;
+    container.appendChild(page);
+    renderChartsForWeek(week, weekData);
+  });
+}
+
+function renderChartsForWeek(week, weekData){
+  let calData=[], protData=[], labels=[];
+  weekData.forEach((day,i)=>{
+    let c=0,p=0; day.entries.forEach(e=>{c+=e.cal; p+=e.p;}); calData.push(c); protData.push(p); labels.push(dayNames[i]);
+  });
+  new Chart(document.getElementById("calChart_"+week).getContext("2d"),{type:'bar',data:{labels,datasets:[{label:'Calories',data:calData,backgroundColor:calData.map(v=>v>2100?'var(--danger)':'var(--accent)')}]}});
+  new Chart(document.getElementById("protChart_"+week).getContext("2d"),{type:'bar',data:{labels,datasets:[{label:'Protein',data:protData,backgroundColor:protData.map(v=>v<PROTEIN_TARGET?'var(--danger)':'var(--accent)')}]}});
+}
+
+function toggleDark(){ document.body.classList.toggle("dark"); }
+</script>
+</body>
+</html>
