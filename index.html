@@ -55,16 +55,6 @@ input,select{
   font-size:12px;
   margin-left:6px;
 }
-.swipe-container{
-  display:flex;
-  overflow-x:auto;
-  scroll-snap-type:x mandatory;
-}
-.swipe-page{
-  min-width:100%;
-  flex-shrink:0;
-  scroll-snap-align:start;
-}
 .entry-row{
   display:flex;
   justify-content:space-between;
@@ -74,12 +64,36 @@ input,select{
 }
 .entry-row span{flex:1;}
 .entry-buttons{display:flex; gap:6px;}
+.progress-container{
+  background:#333;
+  border-radius:12px;
+  height:20px;
+  overflow:hidden;
+  margin:12px 0;
+}
+.progress-bar{
+  height:100%;
+  background:var(--accent);
+  width:0%;
+  transition:0.3s;
+  text-align:center;
+  color:#121212;
+  font-weight:bold;
+  line-height:20px;
+}
 </style>
 </head>
 <body>
 
 <div class="card">
   <h2>Physique Tracker</h2>
+</div>
+
+<div class="card">
+  <h3>Weekly Calories Progress</h3>
+  <div class="progress-container">
+    <div id="weeklyProgress" class="progress-bar">0 / 14000 kcal</div>
+  </div>
 </div>
 
 <div class="card">
@@ -99,10 +113,11 @@ input,select{
   <button id="addEntryBtn" class="primary-btn">Add Entry</button>
 </div>
 
-<div id="swipeContainer" class="swipe-container"></div>
+<div id="weekContainer"></div>
 
 <script>
 const PROTEIN_TARGET = 140;
+const WEEKLY_CAL_TARGET = 14000; // e.g., 2000 kcal/day * 7 days
 const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 let data = JSON.parse(localStorage.getItem("physiqueData")) || dayNames.map(()=>({entries:[],training:false}));
 
@@ -117,6 +132,7 @@ populateDays();
 // Save to localStorage
 function save(){
   localStorage.setItem("physiqueData", JSON.stringify(data));
+  updateWeeklyProgress();
 }
 
 // Add Entry
@@ -133,7 +149,7 @@ function addFood(){
   data[day].entries.push({meal,food,p,c,f,cal});
   data[day].training = training;
   save();
-  renderSwipePages();
+  renderWeek();
   document.getElementById("food").value="";
   document.getElementById("protein").value="";
   document.getElementById("carbs").value="";
@@ -166,7 +182,7 @@ function editEntry(d,i){
     data[d].entries[i] = {meal,food,p,c,f,cal};
     data[d].training = training;
     save();
-    renderSwipePages();
+    renderWeek();
     btn.textContent = "Add Entry";
     btn.removeEventListener('click', saveEdit);
     btn.addEventListener('click', addFood);
@@ -179,16 +195,16 @@ function deleteEntry(d,i){
   if(!confirm("Delete this entry?")) return;
   data[d].entries.splice(i,1);
   save();
-  renderSwipePages();
+  renderWeek();
 }
 
-// Render Pages
-function renderSwipePages(){
-  const container = document.getElementById("swipeContainer");
+// Render Week vertically
+function renderWeek(){
+  const container = document.getElementById("weekContainer");
   container.innerHTML = "";
   data.forEach((dayData,i)=>{
-    const page = document.createElement("div");
-    page.className = "swipe-page card";
+    const card = document.createElement("div");
+    card.className = "card";
     let totalC = 0, totalP = 0;
     dayData.entries.forEach(e=>{ totalC+=e.cal; totalP+=e.p; });
     let html = dayData.entries.map((e,j)=>`
@@ -199,11 +215,22 @@ function renderSwipePages(){
           <button class="danger-btn" onclick="deleteEntry(${i},${j})">Del</button>
         </div>
       </div>`).join("");
-    page.innerHTML = `<strong>${dayNames[i]} ${dayData.training?"💪":""}</strong> ${Math.round(totalC)} kcal<br>Protein: ${Math.round(totalP)}/${PROTEIN_TARGET} g<br>${html}`;
-    container.appendChild(page);
+    card.innerHTML = `<strong>${dayNames[i]} ${dayData.training?"💪":""}</strong> ${Math.round(totalC)} kcal<br>Protein: ${Math.round(totalP)}/${PROTEIN_TARGET} g<br>${html}`;
+    container.appendChild(card);
   });
+  updateWeeklyProgress();
 }
-renderSwipePages();
+
+// Update weekly calories progress bar
+function updateWeeklyProgress(){
+  let totalWeekCalories = data.reduce((sum,day)=> sum + day.entries.reduce((s,e)=> s+e.cal,0),0);
+  const progressEl = document.getElementById("weeklyProgress");
+  const percent = Math.min((totalWeekCalories/WEEKLY_CAL_TARGET)*100,100);
+  progressEl.style.width = percent + "%";
+  progressEl.textContent = `${totalWeekCalories} / ${WEEKLY_CAL_TARGET} kcal`;
+}
+
+renderWeek();
 </script>
 </body>
 </html>
